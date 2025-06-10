@@ -1,18 +1,38 @@
 import socket
 import rsa
+import threading
 
-# Connect to server and get public key
+# Generate key pair for client
+client_pub, client_priv = rsa.newkeys(2048)
+
+# Connect to server
 client = socket.socket()
-client.connect(('localhost', 9998))
+client.connect(('localhost', 9999))
 
-public_key_data = client.recv(2048)
-public_key = rsa.PublicKey.load_pkcs1(public_key_data)
+# Receive server's public key
+server_pub_data = client.recv(2048)
+server_pub = rsa.PublicKey.load_pkcs1(server_pub_data)
 
-# Encrypt message
-message = b"Hello from client using RSA asymmetric encryption!"
-encrypted_msg = rsa.encrypt(message, public_key)
+# Send client's public key
+client.send(client_pub.save_pkcs1())
 
-# Send encrypted message
-client.send(encrypted_msg)
-print("[Client] Encrypted message sent.")
-client.close()
+# Function to receive and decrypt
+def receive_messages():
+    while True:
+        try:
+            encrypted_msg = client.recv(4096)
+            decrypted_msg = rsa.decrypt(encrypted_msg, client_priv)
+            print(f"[Server]: {decrypted_msg.decode()}")
+        except:
+            break
+
+# Function to send encrypted messages
+def send_messages():
+    while True:
+        msg = input("[You]: ")
+        encrypted = rsa.encrypt(msg.encode(), server_pub)
+        client.send(encrypted)
+
+# Start threads
+threading.Thread(target=receive_messages).start()
+threading.Thread(target=send_messages).start()
